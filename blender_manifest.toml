@@ -1,0 +1,17 @@
+schema_version = "1.0.0"
+# https://docs.blender.org/manual/en/4.2/advanced/extensions/getting_started.html#manifest
+
+id = "MapPlacer"
+version = "1.0.0"
+name = "Blender add-on for placing objects on a map."
+tagline = "This is another extension"
+maintainer = "Tristan Hook"
+type = "add-on"
+
+website = "https://github.com/captn-hook/MapPlacer"
+blender_version_min = "4.3.2"
+
+license = ["ISC"]
+
+[permissions]
+files = "Import/export csv from/to disk"
