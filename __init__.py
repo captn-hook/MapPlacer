@@ -22,34 +22,16 @@ def register():
         
     win = bpy.types.WindowManager
     
-    win.file_path = bpy.props.StringProperty(name="Data Path", description="CSV file to rerieve locations from", default="/sampledata.csv")
-    win.coordinate_mode = bpy.props.EnumProperty(
-        name="Coordinate Mode",
-        description="Choose which coordinate system to use",
-        items=[
-            ('XYZ', "XYZ", "Use X, Y, Z coordinates"),
-            ('XY', "XY", "Use X, Y coordinates"),
-            ('Spherical', "Spherical", "Use Latitude and Longitude coordinates"),
-        ], 
-        default='Spherical'
-    )
-    win.scale = bpy.props.FloatProperty(name="Scale", description="Scale factor for output", default=10.0, min=0.01, max=100.0)
-    win.x = bpy.props.StringProperty(name="X coordinate column", description="Column in CSV for X coordinate", default="x")
-    win.y = bpy.props.StringProperty(name="Y coordinate column", description="Column in CSV for Y coordinate", default="y")
-    win.z = bpy.props.StringProperty(name="Z coordinate column", description="Column in CSV for Z coordinate", default="z")
-    win.lat = bpy.props.StringProperty(name="Latitude column", description="Column in CSV for Latitude coordinate", default="Lat")
-    win.lon = bpy.props.StringProperty(name="Longitude column", description="Column in CSV for Longitude coordinate", default="Lng")
+    win.file_path1 = bpy.props.StringProperty(name="Data Path", description="CSV file to rerieve locations from", default="/PIs-DBs direct data.csv")
+    win.file_path2 = bpy.props.StringProperty(name="Optional Data Path", description="Optional CSV file for additional data", default="/DBs-SRCs data.csv")
     
-    win.marker_mode = bpy.props.EnumProperty(
-        name="Marker Mode",
-        description="Choose which mode to use",
-        items=[
-            ('Object', "Object", "Place objects at coordinates"),
-            ('Connections', "Connections", "Create connections between coordinates"),
-            ('Both', "Both", "Place objects and create connections"),
-        ],
-        default='Both'
-    )
+    win.scale = bpy.props.FloatProperty(name="Scale", description="Scale factor for output", default=10.0, min=0.01, max=100.0)
+    win.lat_from = bpy.props.StringProperty(name="Latitude from column", description="Column in CSV for Latitude coordinate", default="Lat")
+    win.lng_from = bpy.props.StringProperty(name="Longitude fromcolumn", description="Column in CSV for Longitude coordinate", default="Lng")
+    win.lat_to = bpy.props.StringProperty(name="Latitude to column", description="Column in CSV for Latitude coordinate of destination", default="DB_Lat")
+    win.lng_to = bpy.props.StringProperty(name="Longitude to column", description="Column in CSV for Longitude coordinate of destination", default="DB_Lng")
+    win.label = bpy.props.StringProperty(name="Label column", description="Column in CSV for second file labels", default="DB_Name")
+    
     win.marker = bpy.props.PointerProperty(
         name="Marker Object",
         description="Object to use as marker",
@@ -63,13 +45,11 @@ def unregister():
         
     win = bpy.types.WindowManager
     
-    del win.file_path
-    del win.coordinate_mode
+    del win.file_path1
+    del win.file_path2
     del win.scale
-    del win.x
-    del win.y
-    del win.z
-    del win.lat
-    del win.lon
-    del win.marker_mode
+    del win.lat_from
+    del win.lng_from
+    del win.lat_to
+    del win.lng_to
     del win.marker
