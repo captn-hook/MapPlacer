@@ -3,8 +3,8 @@ schema_version = "1.0.0"
 
 id = "MapPlacer"
 version = "1.0.0"
-name = "Blender add-on for placing objects on a map."
-tagline = "This is another extension"
+name = "Map Placer"
+tagline = "Add-on for placing objects on a map"
 maintainer = "Tristan Hook"
 type = "add-on"
 
@@ -12,6 +12,13 @@ website = "https://github.com/captn-hook/MapPlacer"
 blender_version_min = "4.3.2"
 
 license = ["ISC"]
+
+platforms = ["windows-x64", "macos-x64"]
+
+wheels = [
+    "./wheels/pyproj-3.6.1-cp311-cp311-macosx_11_0_arm64.whl",
+    "./wheels/pyproj-3.7.1-cp311-cp311-win_amd64.whl"
+]
 
 [permissions]
 files = "Import/export csv from/to disk"
