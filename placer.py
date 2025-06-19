@@ -11,9 +11,11 @@ f_inv = 298.257224
 f = 1.0 / f_inv
 e2 = 1 - (1 - f) * (1 - f)
 
-connection_cache = {}
+connection_cache1 = {}
+connection_cache2 = {}
 marker_cache = {}
 color_cache = []
+
 
 class run_placer(Operator):
     bl_idname = "run.main"
@@ -26,40 +28,62 @@ class run_placer(Operator):
         # 1. The file path is set
         # 3. if the marker mode is set to 'Object' or 'Both', the marker object is set
         win = context.window_manager
-        if not win.file_path1:
+        if not win.file_path:
             return False
         return True
     
     def execute(self, context):
         
         win = context.window_manager
-        file_path1 = win.file_path1
-        file_path2 = win.file_path2
+        file_path = win.file_path
         scale = win.scale
+        
+        label_from = label_ingest(win.label_from)
         lat_from = win.lat_from
         lng_from = win.lng_from
+        
+        label_to = label_ingest(win.label_to)
         lat_to = win.lat_to
         lng_to = win.lng_to
-        label = win.label
+        
+        label_to2 = label_ingest(win.label_to2)
+        lat_to2 = win.lat_to2
+        lng_to2 = win.lng_to2
+        
         marker_object = win.marker
         
-        abspath = fixfile(file_path1)
+        # print ingested values and their types
+        print(f"Label From: {label_from} (type: {type(label_from)})")
+        print(f"Label To: {label_to} (type: {type(label_to)})")
+        print(f"Label To2: {label_to2} (type: {type(label_to2)})")
+        
+        abspath = fixfile(file_path)
         try:
-            if file_path2:
-                abspath2 = fixfile(file_path2)
-                data = ingest_data(abspath, abspath2, lat_from=lat_from, lng_from=lng_from, lat_to=lat_to, lng_to=lng_to, label=label)
-            else:
-                data = ingest_data(abspath, lat_from=lat_from, lng_from=lng_from, lat_to=lat_to, lng_to=lng_to)
 
-            global connection_cache, marker_cache, color_cache
+            data1, data2 = ingest_data(abspath, 
+                               label_from=label_from, lat_from=lat_from, lng_from=lng_from,
+                               label_to=label_to, lat_to=lat_to, lng_to=lng_to,
+                               label_to2=label_to2, lat_to2=lat_to2, lng_to2=lng_to2)
+
+            global connection_cache1, connection_cache2, marker_cache, color_cache
             
-            connection_cache = {}
+            connection_cache1 = {}
+            connection_cache2 = {}
             marker_cache = {}         
             color_cache = preload_colors(4)  # Preload colors for connections   
             
-            place_markers(data, context, scale, marker_object)
+            print(f"Placing markers for {len(data1)} connections.")
+            
+            place_markers(data1, context, scale, marker_object)
+            
+            print(f"Placing markers for {len(data2)} additional connections.")
+            
+            if data2:
+                place_markers(data2, context, scale, marker_object, level=1)
+                
             # Clear the cache
-            connection_cache = {}
+            connection_cache1 = {}
+            connection_cache2 = {}
             color_cache = []
             marker_cache = {}
 
@@ -68,28 +92,36 @@ class run_placer(Operator):
             self.report({'ERROR'}, f"Error processing {e}")
             return {'CANCELLED'}
         
+def label_ingest(string_property):
+    # if the string is , seperated, return a list of strings
+    if ',' in string_property:
+        return [s for s in string_property.split(', ')]
+    else:
+        return string_property
+        
 def place_markers(data, context, scale, marker_object, level=0):
-    objs_to = []
     for location in data:
-        if location.connections:
-            place_markers(location.connections, context, scale, marker_object, level + 1)
+        
+        label_from = location.label.split(' -> ')[0]
+        lat_from = location.lat_from
+        lon_from = location.lng_from
+        obj_from = place_marker(context, label_from, lat_from, lon_from, scale, marker_object)
+        
+        label_to = location.label.split(' -> ')[1]
+        lat_to = location.lat_to
+        lon_to = location.lng_to
+        obj_to = place_marker(context, label_to, lat_to, lon_to, scale, marker_object)
             
-        lat = location.lat
-        lon = location.lng
-        obj_from = place_marker(context, lat, lon, scale, marker_object)
-        objs_to.append(obj_from)
-            
-        if len(objs_to) > 0:
-            # Create connections 
-            for obj_to in objs_to:
-                create_connection(context, obj_from, obj_to, scale, level=level)
+        create_connection(context, location.label, obj_from, obj_to, scale, level=level)
 
-def place_marker(context, lat, lon, scale, marker_object):
-    name = f"Marker_{lat}_{lon}"
+def place_marker(context, name, lat, lon, scale, marker_object):
+    global marker_cache
+    
     # Check if the marker already exists in the cache
     if name in marker_cache:
         return marker_cache[name]
                 
+    print(f"Placing marker for {name} at ({lat}, {lon}) with scale {scale}")
     x, y, z = gps2ecef_custom(lat, lon, 0)
     # Divide by earth radius to get normalized coordinates
     x /= R
@@ -110,19 +142,27 @@ def place_marker(context, lat, lon, scale, marker_object):
     
     return new_marker    
 
-def create_connection(context, obj_from, obj_to, scale, level=0):
+def create_connection(context, name, obj_from, obj_to, scale, level=0):
     if obj_from == obj_to:
         return None
     # Check if the connection already exists
-    name1 = obj_from.name + "_" + obj_to.name
-    name2 = obj_to.name + "_" + obj_from.name
-    if name1 in connection_cache:
-        return connection_cache[name1]
-    elif name2 in connection_cache:
-        return connection_cache[name2]
+    if level == 0:
+        if name in connection_cache1:
+            return connection_cache1[name]
+        
+        name2 = name.split(' -> ')[1] + ' -> ' + name.split(' -> ')[0]
+        if name2 in connection_cache1:
+            return connection_cache1[name2]    
+    else:
+        if name in connection_cache2:
+            return connection_cache2[name]
+        
+        name2 = name.split(' -> ')[1] + ' -> ' + name.split(' -> ')[0]
+        if name2 in connection_cache2:
+            return connection_cache2[name2]
     
     # Create a new curve with 3 handles
-    curve_data = bpy.data.curves.new(name=name1, type='CURVE')
+    curve_data = bpy.data.curves.new(name=name, type='CURVE')
     curve_data.dimensions = '3D'
     curve_data.resolution_u = 4
     curve_data.render_resolution_u = 12
@@ -149,9 +189,22 @@ def create_connection(context, obj_from, obj_to, scale, level=0):
     midpoint = (
         (obj_from.location.x + obj_to.location.x) / 2,
         (obj_from.location.y + obj_to.location.y) / 2,
-        (obj_from.location.z + obj_to.location.z) / 2
+        (obj_from.location.z + obj_to.location.z) / 3 # average the z values, but move it a bit towards 0
     )
     
+    # cap the z value of the midpoint to be within the z bounds of the two objects
+    high_end = max(obj_from.location.z, obj_to.location.z) * .8 # move towards 0
+    low_end = min(obj_from.location.z, obj_to.location.z) * .8 # move towards 0
+    
+    # if the low end somehow is higher than the high end, average the two source values
+    if low_end > high_end:
+        midpoint = (midpoint[0], midpoint[1], (high_end + low_end) / 2)
+    else:
+        if midpoint[2] > high_end:
+            midpoint = (midpoint[0], midpoint[1], high_end)
+        elif midpoint[2] < low_end:
+            midpoint = (midpoint[0], midpoint[1], low_end)
+        
     midpoint = normalize_tuple(midpoint, scale + (distance / 5))
     
     # Create a new spline
@@ -160,34 +213,67 @@ def create_connection(context, obj_from, obj_to, scale, level=0):
     
     spline.bezier_points[0].co = obj_from.location
     handle_left1 = normalize_tuple(obj_from.location, scale - (distance / 4))
+    
     handle_right1 = normalize_tuple(obj_from.location, scale + (distance / 4))
+    handle_right1 = (
+        handle_right1[0],
+        handle_right1[1],
+        ((handle_right1[2] + midpoint[2]) / 2 + midpoint[2]) / 2
+    )
+    
     spline.bezier_points[0].handle_left = handle_left1
+    spline.bezier_points[0].handle_left_type = 'AUTO'  # Set handle type to automatic
     spline.bezier_points[0].handle_right = handle_right1
     
     spline.bezier_points[1].co = midpoint
     
     spline.bezier_points[2].co = obj_to.location
+    
     handle_left2 = normalize_tuple(obj_to.location, scale + (distance / 4))
+    handle_left2 = (
+        handle_left2[0],
+        handle_left2[1],
+        ((handle_left2[2] + midpoint[2]) / 2 + midpoint[2]) / 2
+    )
+    
     handle_right2 = normalize_tuple(obj_to.location, scale - (distance / 4))
     spline.bezier_points[2].handle_left = handle_left2
     spline.bezier_points[2].handle_right = handle_right2
+    spline.bezier_points[2].handle_right_type = 'AUTO'  # Set handle type to automatic
     
+    # handle_right_mid = (
+    #     handle_right1[0],
+    #     handle_right1[1],
+    #     (handle_right1[2] + midpoint[2]) / 2
+    # )
+    
+    # handle_left_mid = (
+    #     handle_left2[0],
+    #     handle_left2[1],
+    #     (handle_left2[2] + midpoint[2]) / 2        
+    # )
+    
+    # spline.bezier_points[1].handle_left = handle_right_mid #handle_right1
+    # spline.bezier_points[1].handle_right = handle_left_mid #handle_left2
     spline.bezier_points[1].handle_left = handle_right1
     spline.bezier_points[1].handle_right = handle_left2
     
-    # set the midpoint to automatic
+    # # set the midpoint to automatic
     spline.bezier_points[1].handle_left_type = 'AUTO'
     spline.bezier_points[1].handle_right_type = 'AUTO'  
     
     
     # Create a new object with the curve data
-    curve_object = bpy.data.objects.new(name=f"Connection_{obj_from.name}_{obj_to.name}", object_data=curve_data)
+    curve_object = bpy.data.objects.new(name=name, object_data=curve_data)
     # Set the material for the curve
     curve_object.data.materials.append(material)
     # Link the curve object to the current collection
     context.collection.objects.link(curve_object)
     
-    connection_cache[name1] = curve_object    
+    if level == 0:
+        connection_cache1[name] = curve_object    
+    else:
+        connection_cache2[name] = curve_object
     return curve_object  
 
 def preload_colors(num_colors):
@@ -197,7 +283,7 @@ def preload_colors(num_colors):
     return color_cache
 
 def create_material(level):
-    colors = ['#FF0000', '#0000FF', '#00FF00', '#FFFF00']
+    colors = ['#FF6A00', '#f3ff52', '#00FF6A', '#00A0FF', '#FF00A0']
     if level >= len(colors):
         return None
     color_hex = colors[level]
@@ -222,6 +308,7 @@ def create_material(level):
     color_cache.append(material)
 
 def normalize_tuple(tuple, scale = 1.0):
+    print(f"Normalizing tuple {tuple} with scale {scale}")
     length = math.sqrt(tuple[0]**2 + tuple[1]**2 + tuple[2]**2)
     tuple = (
         tuple[0] / length * scale,
